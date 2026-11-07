@@ -1,0 +1,12 @@
+# Personal data must never be committed. These are a backstop; the real
+# store lives outside the repo (see docs/layout.md).
+/data/
+/store/
+decrypt-me-store/
+*.age
+*.enc
+.env
+.env.*
+
+# Private working notes (contain machine and personal details).
+/PLAN.md
