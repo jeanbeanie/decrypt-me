@@ -200,6 +200,37 @@ A second problem showed up in the reflection replies: citations can be wrong. In
 
 Conclusion: an 8B model cannot reliably find the meaningful contrast across entries, with or without a contrast step, and thinking mode only helps unreliably. Do not build the reflection layer on an assumption that it will.
 
+### Larger model test (14B)
+
+Same family one size up: `qwen3:14b` at 4-bit. It loads at 10.2 GB, of which 6.6 GB (64%) fits in 8 GB of VRAM and the rest spills to system RAM. Generation runs at about 8 tokens/s, versus about 40 for the 8B. Thinking mode was off.
+
+Contrast step (call A only), 02-14 moved through all five positions, 3 runs each, on the first synthetic person:
+
+| Model | Picked 2026-02-14 |
+|---|---|
+| 8B, thinking off | 0/15 |
+| 8B, thinking on | 7/15 |
+| 14B, thinking off | 15/15, every position |
+
+That looked like a solution, so two checks followed.
+
+**Full pipeline with the right exception supplied.** Five protocol replies from the 14B all cited only real dates, and every claim matched its entry. The 8B misdated the key event in 3 of 5 replies. The weakness left: all five replies ended with a question that suggests an answer ("What might happen if you tried saying 'I can't' more often?"), which the protocol forbids, and the replies were near-identical.
+
+**A second synthetic person.** Six entries about a person who never asks for help, with the exception on 2026-03-29 (asked a neighbor to help carry a couch and felt good). Two decoys: 2026-03-09 is intensely negative (cried, felt like failing) and 2026-03-15 is intensely positive (won a raffle, great mood). Each position of the target, 3 runs each:
+
+| Model | Picked 2026-03-29 | What it picked instead |
+|---|---|---|
+| 14B | 3/18 (chance) | 2026-03-15 in 12 runs, 2026-03-09 in 3 runs. Right only when the target came first in the list. |
+| 8B | 6/18 | 2026-04-05 in 12 runs. Right only when the target was in position 5 or 6. |
+
+Interpretation: the 14B's 15/15 on the first person was an artifact of that dataset. There the exception was also the most positive entry, and the model picks emotional extremes. On the second person it picked the raffle. The 8B is driven by position instead. Neither finds a behavioral contrast reliably.
+
+What a larger model does improve: citation accuracy and the quality of the writing once the right exception is supplied.
+
+Caveats: the call A wording allows a mood-based reading ("or how they felt afterward"), and a behavior-only wording is untested. Both people were written by the same author, six entries or fewer, one model family. Thinking mode on the 14B was not run, since it would take minutes per answer at 8 tokens/s.
+
+Conclusion: model size does not fix contrast finding. The exception has to come from somewhere other than an unguided LLM comparison: a behavior-focused prompt (untested), a non-LLM method that nominates candidates, or the user.
+
 ### Model server privacy notes
 
 - The server's default logs did not contain the test prompt text.
@@ -212,13 +243,14 @@ Conclusion: an 8B model cannot reliably find the meaningful contrast across entr
 - How should the local model server be reached from the agent environment (endpoint design, binding, firewall)?
 - How to reconcile active mode with encryption.
 - Which encryption tool or tools to standardize on, and how to handle key recovery.
-- Whether a 12–14B model finds the meaningful contrast reliably when the position of the entry is controlled. If not, whether a non-LLM method (for example embedding-based outlier detection across entries) can nominate candidate contrasts for the model to reflect on. Untested; the embedding idea is an inference.
+- How the meaningful contrast should be chosen if an unguided model cannot find it: a behavior-only prompt, non-LLM nomination (for example embedding-based outlier detection, which would likely also favor emotional extremes and is untested), the user picking from candidates, or a mix.
 
 ## Next steps
 
 1. Draft an `AGENTS.md` for the local reflection agent.
-2. Test a 12–14B model on the position-controlled contrast task.
-3. Add a programmatic citation check to any pipeline that cites entries.
-4. Turn the encrypted-store prototype into `init-store`, `mount` and `unmount` scripts.
-5. Write the pre-commit hook that refuses commits touching personal-data paths.
-6. Design the active-mode scheduler, key handling and the outbound log.
+2. Test a behavior-only contrast prompt on both synthetic people, with the 8B and the 14B.
+3. Save both synthetic people as repeatable fixtures with the expected exception for each.
+4. Add a programmatic citation check to any pipeline that cites entries.
+5. Turn the encrypted-store prototype into `init-store`, `mount` and `unmount` scripts.
+6. Write the pre-commit hook that refuses commits touching personal-data paths.
+7. Design the active-mode scheduler, key handling and the outbound log.
