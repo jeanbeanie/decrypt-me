@@ -198,7 +198,7 @@ Picking at random among five entries would give 20% (3/15). Thinking mode is som
 
 A second problem showed up in the reflection replies: citations can be wrong. In 3 of the 5 raw chronological replies without thinking, the model placed the honest conversation with the friend on 2026-02-03 instead of 2026-02-14, and one reply claimed the person was "acknowledging your limits" on 2026-02-03, which that entry does not say. Asking for dates makes the model produce plausible but wrong ones. Any pipeline that cites entries needs a programmatic check that each cited date exists and that the claim matches that entry.
 
-Conclusion: an 8B model cannot reliably find the meaningful contrast across entries, with or without a contrast step, and thinking mode only helps unreliably. Do not build the reflection layer on an assumption that it will.
+Conclusion at that point (superseded, see "Behavior-only prompt test" below): with that prompt wording an 8B model could not find the contrast reliably, and thinking mode helped unreliably. The later test showed the prompt wording was a main cause.
 
 ### Larger model test (14B)
 
@@ -223,13 +223,36 @@ That looked like a solution, so two checks followed.
 | 14B | 3/18 (chance) | 2026-03-15 in 12 runs, 2026-03-09 in 3 runs. Right only when the target came first in the list. |
 | 8B | 6/18 | 2026-04-05 in 12 runs. Right only when the target was in position 5 or 6. |
 
-Interpretation: the 14B's 15/15 on the first person was an artifact of that dataset. There the exception was also the most positive entry, and the model picks emotional extremes. On the second person it picked the raffle. The 8B is driven by position instead. Neither finds a behavioral contrast reliably.
+Interpretation: the 14B's 15/15 on the first person was an artifact of that dataset. There the exception was also the most positive entry, and the model picked emotional extremes. On the second person it picked the raffle. The 8B was driven by position instead. With this prompt wording neither found a behavioral contrast reliably.
 
 What a larger model does improve: citation accuracy and the quality of the writing once the right exception is supplied.
 
-Caveats: the call A wording allows a mood-based reading ("or how they felt afterward"), and a behavior-only wording is untested. Both people were written by the same author, six entries or fewer, one model family. Thinking mode on the 14B was not run, since it would take minutes per answer at 8 tokens/s.
+Caveats: both people were written by the same author, six entries or fewer, one model family. Thinking mode on the 14B was not run, since it would take minutes per answer at 8 tokens/s.
 
-Conclusion: model size does not fix contrast finding. The exception has to come from somewhere other than an unguided LLM comparison: a behavior-focused prompt (untested), a non-LLM method that nominates candidates, or the user.
+Conclusion at that point (superseded, see below): model size alone did not fix contrast finding with this prompt wording.
+
+### Behavior-only prompt test
+
+The call A wording asked for the entry that differs "in what the person did, or how they felt afterward", which invited a mood reading. It was rewritten: find the behavior most entries share ("what the person does, not how they feel"), then the single entry that behaves differently, "ignoring mood and emotional intensity". Same protocol: both people, every position of the target, 3 runs per position, thinking off, success means picking the target.
+
+| Model | Person 1 (target 02-14) | Person 2 (target 03-29) |
+|---|---|---|
+| 8B | 11/15 | 15/18 |
+| 14B | 15/15 | 18/18 |
+
+For comparison, the earlier wording scored 8B 0/15 (no thinking) and 6/18, and 14B 15/15 and 3/18. The 8B's misses sat at one or two positions: on person 1 it picked 02-03 in all three runs at position 2, and on person 2 it picked decoys at position 1.
+
+Interpretation: the earlier failures were largely the prompt. Telling the model to ignore mood fixed it completely for the 14B on both people and mostly for the 8B. The earlier statements that model size does not help and that an unguided comparison cannot work were wrong for this wording.
+
+Caveats:
+
+- The prompt was revised after seeing failures on these same two people, and both targets are behavioral contrasts (asking for help, telling a friend the truth). That is tuning on the test set. It needs a held-out person.
+- The prompt ignores mood by design, so it cannot find an exception that is emotional rather than behavioral.
+- It always returns one entry, so it will name an exception even when none exists. Untested on a person with no exception.
+- Matching the date overstates the 8B. One logged 8B sample named the right date with the wrong reason ("missed Mira's dinner and did not follow through", which describes a different entry). The 14B samples gave correct reasons. Only one sample per cell was read.
+- Five or six entries per person. Real journals will have far more.
+
+Conclusion: a 14B model with a behavior-focused prompt finds the contrast reliably on these two examples, and the 8B is partly workable. Whether it generalizes is not yet shown.
 
 ### Model server privacy notes
 
@@ -243,13 +266,13 @@ Conclusion: model size does not fix contrast finding. The exception has to come 
 - How should the local model server be reached from the agent environment (endpoint design, binding, firewall)?
 - How to reconcile active mode with encryption.
 - Which encryption tool or tools to standardize on, and how to handle key recovery.
-- How the meaningful contrast should be chosen if an unguided model cannot find it: a behavior-only prompt, non-LLM nomination (for example embedding-based outlier detection, which would likely also favor emotional extremes and is untested), the user picking from candidates, or a mix.
+- Whether the behavior-only contrast step holds on a held-out person with a different kind of exception, on a person with no exception (false positives), and on a journal with dozens of entries. How to surface exceptions that are emotional rather than behavioral.
 
 ## Next steps
 
 1. Draft an `AGENTS.md` for the local reflection agent.
-2. Test a behavior-only contrast prompt on both synthetic people, with the 8B and the 14B.
-3. Save both synthetic people as repeatable fixtures with the expected exception for each.
+2. Run held-out tests of the contrast step: a third synthetic person with a different kind of exception, a person with no exception, and a longer journal.
+3. Save the synthetic people as repeatable fixtures with the expected exception for each.
 4. Add a programmatic citation check to any pipeline that cites entries.
 5. Turn the encrypted-store prototype into `init-store`, `mount` and `unmount` scripts.
 6. Write the pre-commit hook that refuses commits touching personal-data paths.
